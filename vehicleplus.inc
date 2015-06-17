@@ -1080,6 +1080,23 @@ stock static Vehicle_SetPropertyFloat(vehicleid, type, Float:set)
 	return setproperty(.value = Vehicle_EncodeString(name), .string = value);
 }
 
+stock static Vehicle_DeleteProperty(vehicleid, type)
+{
+	new name[50];
+	format(name, sizeof(name), "%i_%s", vehicleid, gVehicleProperty[type]);
+
+	switch(type)
+	{
+	    case v_speedcap:        return deleteproperty(.value = Vehicle_EncodeString(name));
+	    case v_spawn<0>:        return deleteproperty(.value = Vehicle_EncodeString(name));
+	    case v_spawn<1>:        return deleteproperty(.value = Vehicle_EncodeString(name));
+	    case v_spawn<2>:        return deleteproperty(.value = Vehicle_EncodeString(name));
+	    case v_spawn<3>:        return deleteproperty(.value = Vehicle_EncodeString(name));
+	}
+
+	return deleteproperty(.name = name);
+}
+
 stock Vehicle_CreateVehicle(modelid, Float:x, Float:y, Float:z, Float:rotation, color1 = -1, color2 = -1, respawn_delay = -1, addsiren = 0, worldid = 0, interiorid = 0, bool:unoccupied_damage = false)
 {
 	if(modelid < 400 || modelid > 610) return false;
@@ -1922,7 +1939,7 @@ stock EditVehicleObject(playerid, vehicleid, objectid)
 	if(IsValidObject(Vehicle_GetPropertyInt(vehicleid, v_editor))) return false;
 
 	if(! IsValidObject(objectid)) return false;
-	
+
 	Vehicle_SetPropertyInt(vehicleid, v_editor, objectid);
 
 	new Float:pos[3];
@@ -1936,7 +1953,7 @@ stock EditVehicleObject(playerid, vehicleid, objectid)
 
 	DestroyObject(objectid);
 	Vehicle_SetPropertyInt(vehicleid, v_editor, CreateObject(model, pos[0], pos[1], pos[2], angle, 0, 0));
-	
+
 	EditObject(playerid, Vehicle_GetPropertyInt(vehicleid, v_editor));
 
 	SetVehicleZAngle(vehicleid, 0.0);
@@ -1999,9 +2016,9 @@ public OnPlayerEditObject(playerid, playerobject, objectid, response, Float:fX, 
                         new Float:final_pos[2];
                         final_pos[0] = (new_pos[0] * floatcos(new_pos[3], degrees)) + (new_pos[1] * floatsin(new_pos[3], degrees));
                         final_pos[1] = (new_pos[1] * floatcos(new_pos[3], degrees)) - (new_pos[0] * floatsin(new_pos[3], degrees));
-                        
+
                         AttachObjectToVehicle(gPlayerTempData[playerid][e_editor_object], gPlayerTempData[playerid][e_editor_vehicle], final_pos[0], final_pos[1], new_pos[2], fRotX, fRotY, new_pos[3]);
-		            
+
 						Vehicle_SetPropertyInt(gPlayerTempData[playerid][e_editor_vehicle], v_editor, INVALID_OBJECT_ID);
 
 						gPlayerTempData[playerid][e_editor_vehicle] = INVALID_VEHICLE_ID;
