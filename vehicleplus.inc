@@ -1734,7 +1734,7 @@ public OnPlayerWeaponShot(playerid, weaponid, hittype, hitid, Float:fX, Float:fY
 					if(IsUnoccupiedDamageToggled(hitid))
 					{
 					    fUpdate = (GetVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES) + 8);
-					    if(fUpdate > 15)
+					    if(fUpdate < (15 + 1))
 						{
 							UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, fUpdate);
 						}
@@ -1757,7 +1757,7 @@ public OnPlayerWeaponShot(playerid, weaponid, hittype, hitid, Float:fX, Float:fY
 					if(IsUnoccupiedDamageToggled(hitid))
 					{
 					    fUpdate = (GetVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES) + 2);
-					    if(fUpdate > 15)
+					    if(fUpdate < (15 + 1))
 						{
 							UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, fUpdate);
 						}
@@ -1783,7 +1783,7 @@ public OnPlayerWeaponShot(playerid, weaponid, hittype, hitid, Float:fX, Float:fY
 					if(IsUnoccupiedDamageToggled(hitid))
 					{
 					    fUpdate = (GetVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES) + 4);
-					    if(fUpdate > 15)
+					    if(fUpdate < (15 + 1))
 						{
 							UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, fUpdate);
 						}
@@ -1806,7 +1806,7 @@ public OnPlayerWeaponShot(playerid, weaponid, hittype, hitid, Float:fX, Float:fY
 					if(IsUnoccupiedDamageToggled(hitid))
 					{
 					    fUpdate = (GetVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES) + 1);
-					    if(fUpdate > 15)
+					    if(fUpdate < (15 + 1))
 						{
 							UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, fUpdate);
 						}
