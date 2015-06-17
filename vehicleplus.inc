@@ -10,6 +10,7 @@
 	Contributors:
 	* Admigo - a_OPSVP include (offsets of vehicle bodyparts)
 	* Emmet_ - random car colors and top speed array
+	* Yashas - Reporting and improvement
 
 	(c) Copyright 2015
   	* This file is provided as is (no warranties).
@@ -32,6 +33,7 @@ native GetVehicleDamageStatusEx(vehicleid, type);
 native IsVehicleOccupied(vehicleid);
 native GetVehicleDriverID(vehicleid);
 native EditVehicle(playerid, vehicleid);
+native EditVehicleObject(playerid, vehicleid, objectid);
 native IsValidVehicle(vehicleid);
 native GetVehicleName(vehicleid, string[], len = sizeof(string));
 native GetVehicleModelName(modelid, string[], len = sizeof(string));
@@ -65,6 +67,7 @@ native DestroyAllVehicles();
 CALLBACKS:
 public OnPlayerShotVehicle(playerid, vehicleid, weaponid, Float:amount, bodypart)
 public OnPlayerEditVehicle(playerid, vehicleid, response, Float:fX, Float:fY, Float:fZ, Float:fRotZ)
+public OnPlayerEditVehicleObject(playerid, vehicleid, response, Float:fX, Float:fY, Float:fZ, Float:fRotX, Float:fRotY, Float:fRotZ)
 public OnPlayerReachSpeedCapLimit(playerid, vehicleid, Float:speed)
 public OnVehicleBombActivate(vehicleid)
 public OnVehicleBombDeactivate(vehicleid)
@@ -115,7 +118,13 @@ enum VehicleTempDataEnum
 	Float:e_health,
 };
 static gVehicleTempData[MAX_VEHICLES][VehicleTempDataEnum];
-static gPlayerVehicleEditer[MAX_PLAYERS] = INVALID_VEHICLE_ID;
+
+enum PlayerTempDataEnum
+{
+	e_editor_vehicle,
+	e_editor_object
+}
+static gPlayerTempData[MAX_PLAYERS][PlayerTempDataEnum];
 
 stock static const gVehicleTempDataNames[MAX_VEHICLE_MODELS][] =
 {
@@ -995,60 +1004,47 @@ stock static const gVehicleTempDataTopSpeed[MAX_VEHICLE_MODELS] =
 #define v_sticky            21
 #define v_update_timer      22
 
+stock static const gVehicleProperty[][45] =
+{
+	"v_interior",
+	"v_color_1",
+	"v_color_2",
+	"v_paintjob",
+	"v_horn",
+	"v_damage_1",
+	"v_damage_2",
+	"v_damage_3",
+	"v_damage_4",
+	"v_editor",
+	"v_speedcap",
+	"v_spawn_x",
+	"v_spawn_y",
+	"v_spawn_z",
+	"v_spawn_a",
+	"v_spawn_interiorid",
+	"v_spawn_worldid",
+	"v_spawn_uno_damage",
+	"v_petrolcap",
+	"v_bomb",
+	"v_bomb_timer",
+	"v_sticky",
+	"v_update_timer"
+};
+
 stock static Vehicle_SetPropertyInt(vehicleid, type, set)
 {
-	new string[35];
-	switch(type)
-	{
-		case v_interior: 		format(string, sizeof(string), "%i_v_interior", vehicleid);
-		case v_color<0>: 		format(string, sizeof(string), "%i_v_color_1", vehicleid);
-		case v_color<1>: 		format(string, sizeof(string), "%i_v_color_2", vehicleid);
-		case v_paintjob: 		format(string, sizeof(string), "%i_v_paintjob", vehicleid);
-		case v_horn: 			format(string, sizeof(string), "%i_v_horn", vehicleid);
-		case v_damage<0>:		format(string, sizeof(string), "%i_v_damage_1", vehicleid);
-		case v_damage<1>: 		format(string, sizeof(string), "%i_v_damage_2", vehicleid);
-		case v_damage<2>: 		format(string, sizeof(string), "%i_v_damage_3", vehicleid);
-		case v_damage<3>: 		format(string, sizeof(string), "%i_v_damage_4", vehicleid);
-		case v_editor: 			format(string, sizeof(string), "%i_v_editor", vehicleid);
-		case v_spawn_interiorid:format(string, sizeof(string), "%i_v_spawn_interiorid", vehicleid);
-		case v_spawn_worldid: 	format(string, sizeof(string), "%i_v_spawn_worldid", vehicleid);
-		case v_spawn_uno_damage:format(string, sizeof(string), "%i_v_spawn_uno_damage", vehicleid);
-		case v_petrolcap:		format(string, sizeof(string), "%i_v_petrolcap", vehicleid);
-		case v_bomb:			format(string, sizeof(string), "%i_v_bomb", vehicleid);
-		case v_bomb_timer:		format(string, sizeof(string), "%i_v_bomb_timer", vehicleid);
-		case v_sticky:			format(string, sizeof(string), "%i_v_sticky", vehicleid);
-		case v_update_timer:	format(string, sizeof(string), "%i_v_update_timer", vehicleid);
-	}
+	new name[50];
+	format(name, sizeof(name), "%i_%s", vehicleid, gVehicleProperty[type]);
 
-	return setproperty(.name = string, .value = set);
+	return setproperty(.name = name, .value = set);
 }
 
 stock static Vehicle_GetPropertyInt(vehicleid, type)
 {
-	new string[35];
-	switch(type)
-	{
-		case v_interior: 		format(string, sizeof(string), "%i_v_interior", vehicleid);
-		case v_color<0>: 		format(string, sizeof(string), "%i_v_color_1", vehicleid);
-		case v_color<1>: 		format(string, sizeof(string), "%i_v_color_2", vehicleid);
-		case v_paintjob: 		format(string, sizeof(string), "%i_v_paintjob", vehicleid);
-		case v_horn: 			format(string, sizeof(string), "%i_v_horn", vehicleid);
-		case v_damage<0>:		format(string, sizeof(string), "%i_v_damage_1", vehicleid);
-		case v_damage<1>: 		format(string, sizeof(string), "%i_v_damage_2", vehicleid);
-		case v_damage<2>: 		format(string, sizeof(string), "%i_v_damage_3", vehicleid);
-		case v_damage<3>: 		format(string, sizeof(string), "%i_v_damage_4", vehicleid);
-		case v_editor: 			format(string, sizeof(string), "%i_v_editor", vehicleid);
-		case v_spawn_interiorid:format(string, sizeof(string), "%i_v_spawn_interiorid", vehicleid);
-		case v_spawn_worldid: 	format(string, sizeof(string), "%i_v_spawn_worldid", vehicleid);
-		case v_spawn_uno_damage:format(string, sizeof(string), "%i_v_spawn_uno_damage", vehicleid);
-		case v_petrolcap:		format(string, sizeof(string), "%i_v_petrolcap", vehicleid);
-		case v_bomb:			format(string, sizeof(string), "%i_v_bomb", vehicleid);
-		case v_bomb_timer:		format(string, sizeof(string), "%i_v_bomb_timer", vehicleid);
-		case v_sticky:			format(string, sizeof(string), "%i_v_sticky", vehicleid);
-		case v_update_timer:	format(string, sizeof(string), "%i_v_update_timer", vehicleid);
-	}
+	new name[50];
+	format(name, sizeof(name), "%i_%s", vehicleid, gVehicleProperty[type]);
 
-	return getproperty(.name = string);
+	return getproperty(.name = name);
 }
 
 stock static Vehicle_EncodeString(string[])
@@ -1062,89 +1058,26 @@ stock static Vehicle_EncodeString(string[])
     return (source[1] << 16) + source[0];
 }
 
-stock static Vehicle_SetPropertyFloat(vehicleid, type, Float:set)
-{
-	new string[35];
-	switch(type)
-	{
-		case v_speedcap: 	format(string, sizeof(string), "%i_v_speedcap", vehicleid);
-		case v_spawn<0>: 	format(string, sizeof(string), "%i_v_spawn_x", vehicleid);
-		case v_spawn<1>: 	format(string, sizeof(string), "%i_v_spawn_y", vehicleid);
-		case v_spawn<2>: 	format(string, sizeof(string), "%i_v_spawn_z", vehicleid);
-		case v_spawn<3>: 	format(string, sizeof(string), "%i_v_spawn_rotation", vehicleid);
-	}
-
-	new value[8];
-	format(value, sizeof(value), "%f", set);
-
-	return setproperty(.value = Vehicle_EncodeString(string), .string = value);
-}
-
 stock static Float:Vehicle_GetPropertyFloat(vehicleid, type)
 {
-	new string[35];
-	switch(type)
-	{
-		case v_speedcap: 	format(string, sizeof(string), "%i_v_speedcap", vehicleid);
-		case v_spawn<0>: 	format(string, sizeof(string), "%i_v_spawn_x", vehicleid);
-		case v_spawn<1>: 	format(string, sizeof(string), "%i_v_spawn_y", vehicleid);
-		case v_spawn<2>: 	format(string, sizeof(string), "%i_v_spawn_z", vehicleid);
-		case v_spawn<3>: 	format(string, sizeof(string), "%i_v_spawn_rotation", vehicleid);
-	}
+	new name[50];
+	format(name, sizeof(name), "%i_%s", vehicleid, gVehicleProperty[type]);
 
-	new value[8];
-	getproperty(.value = Vehicle_EncodeString(string), .string = value);
+	new value[10];
+	getproperty(.value = Vehicle_EncodeString(name), .string = value);
 
 	return floatstr(value);
 }
 
-stock static Vehicle_DeleteProperty(vehicleid, type)
+stock static Vehicle_SetPropertyFloat(vehicleid, type, Float:set)
 {
-	new string[35];
-	switch(type)
-	{
-		case v_interior: 	format(string, sizeof(string), "%i_v_interior", vehicleid);
-		case v_color<0>: 	format(string, sizeof(string), "%i_v_color_1", vehicleid);
-		case v_color<1>: 	format(string, sizeof(string), "%i_v_color_2", vehicleid);
-		case v_paintjob: 	format(string, sizeof(string), "%i_v_paintjob", vehicleid);
-		case v_horn: 		format(string, sizeof(string), "%i_v_horn", vehicleid);
-		case v_damage<0>:	format(string, sizeof(string), "%i_v_damage_1", vehicleid);
-		case v_damage<1>: 	format(string, sizeof(string), "%i_v_damage_2", vehicleid);
-		case v_damage<2>: 	format(string, sizeof(string), "%i_v_damage_3", vehicleid);
-		case v_damage<3>: 	format(string, sizeof(string), "%i_v_damage_4", vehicleid);
-		case v_editor: 		format(string, sizeof(string), "%i_v_editor", vehicleid);
-		case v_speedcap: 	format(string, sizeof(string), "%i_v_speedcap", vehicleid);
-		case v_spawn<0>:
-		{
-			format(string, sizeof(string), "%i_v_spawn_x", vehicleid);
-			return deleteproperty(.value = Vehicle_EncodeString(string));
-		}
-		case v_spawn<1>:
-		{
-			format(string, sizeof(string), "%i_v_spawn_y", vehicleid);
-			return deleteproperty(.value = Vehicle_EncodeString(string));
-		}
-		case v_spawn<2>:
-		{
-			format(string, sizeof(string), "%i_v_spawn_z", vehicleid);
-			return deleteproperty(.value = Vehicle_EncodeString(string));
-		}
-		case v_spawn<3>:
-		{
-			format(string, sizeof(string), "%i_v_spawn_rotation", vehicleid);
-			return deleteproperty(.value = Vehicle_EncodeString(string));
-		}
-		case v_spawn<4>: 	format(string, sizeof(string), "%i_v_spawn_interiorid", vehicleid);
-		case v_spawn<5>: 	format(string, sizeof(string), "%i_v_spawn_worldid", vehicleid);
-		case v_spawn_uno_damage:format(string, sizeof(string), "%i_v_spawn_uno_damage", vehicleid);
-		case v_petrolcap:	format(string, sizeof(string), "%i_v_petrolcap", vehicleid);
-		case v_bomb:		format(string, sizeof(string), "%i_v_bomb", vehicleid);
-		case v_bomb_timer:	format(string, sizeof(string), "%i_v_bomb_timer", vehicleid);
-		case v_sticky:		format(string, sizeof(string), "%i_v_sticky", vehicleid);
-		case v_update_timer:format(string, sizeof(string), "%i_v_update_timer", vehicleid);
-	}
+	new name[50];
+	format(name, sizeof(name), "%i_%s", vehicleid, gVehicleProperty[type]);
 
-	return deleteproperty(.name = string);
+	new value[8];
+	format(value, sizeof(value), "%f", set);
+
+	return setproperty(.value = Vehicle_EncodeString(name), .string = value);
 }
 
 stock Vehicle_CreateVehicle(modelid, Float:x, Float:y, Float:z, Float:rotation, color1 = -1, color2 = -1, respawn_delay = -1, addsiren = 0, worldid = 0, interiorid = 0, bool:unoccupied_damage = false)
@@ -1297,7 +1230,7 @@ stock Vehicle_DestroyVehicle(vehicleid)
 		{
 			if(IsPlayerConnected(i))
 			{
-				if(gPlayerVehicleEditer[i] == Vehicle_GetPropertyInt(vehicleid, v_editor))
+				if(gPlayerTempData[i][e_editor_vehicle] == Vehicle_GetPropertyInt(vehicleid, v_editor))
 				{
 				    CancelEdit(i);
 				}
@@ -1744,7 +1677,8 @@ public OnPlayerWeaponShot(playerid, weaponid, hittype, hitid, Float:fX, Float:fY
 			new
 				fModelid = GetVehicleModel(hitid),
 				Float:fOffSet[3],
-				Float:fDamage
+				Float:fDamage,
+				fUpdate
 			;
 
 			switch(GetPlayerWeapon(playerid))
@@ -1782,16 +1716,10 @@ public OnPlayerWeaponShot(playerid, weaponid, hittype, hitid, Float:fX, Float:fY
 				{
 					if(IsUnoccupiedDamageToggled(hitid))
 					{
-						switch(GetVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES))
+					    fUpdate = (GetVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES) + 8);
+					    if(fUpdate > 15)
 						{
-						    case 0: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 8);
-						    case 1: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 9);
-						    case 2: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 10);
-						    case 3: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 11);
-						    case 4: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 12);
-						    case 5: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 13);
-						    case 6: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 14);
-						    case 7: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 15);
+							UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, fUpdate);
 						}
 						return 1;
 					}
@@ -1811,16 +1739,10 @@ public OnPlayerWeaponShot(playerid, weaponid, hittype, hitid, Float:fX, Float:fY
 				{
 					if(IsUnoccupiedDamageToggled(hitid))
 					{
-						switch(GetVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES))
+					    fUpdate = (GetVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES) + 2);
+					    if(fUpdate > 15)
 						{
-						    case 0: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 2);
-						    case 1: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 3);
-						    case 4: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 6);
-						    case 5: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 7);
-						    case 8: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 10);
-						    case 9: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 11);
-						    case 12: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 14);
-						    case 13: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 15);
+							UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, fUpdate);
 						}
 						return 1;
 					}
@@ -1843,16 +1765,10 @@ public OnPlayerWeaponShot(playerid, weaponid, hittype, hitid, Float:fX, Float:fY
 				{
 					if(IsUnoccupiedDamageToggled(hitid))
 					{
-						switch(GetVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES))
+					    fUpdate = (GetVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES) + 4);
+					    if(fUpdate > 15)
 						{
-						    case 0: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 4);
-						    case 1: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 5);
-						    case 2: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 6);
-						    case 3: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 7);
-						    case 8: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 12);
-						    case 9: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 13);
-						    case 10: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 14);
-						    case 11: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 15);
+							UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, fUpdate);
 						}
 						return 1;
 					}
@@ -1872,16 +1788,10 @@ public OnPlayerWeaponShot(playerid, weaponid, hittype, hitid, Float:fX, Float:fY
 				{
 					if(IsUnoccupiedDamageToggled(hitid))
 					{
-						switch(GetVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES))
+					    fUpdate = (GetVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES) + 1);
+					    if(fUpdate > 15)
 						{
-						    case 0: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 1);
-						    case 2: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 3);
-						    case 4: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 5);
-						    case 6: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 7);
-						    case 8: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 9);
-						    case 10: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 11);
-						    case 12: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 13);
-						    case 14: UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, 15);
+							UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, fUpdate);
 						}
 						return 1;
 					}
@@ -2002,7 +1912,37 @@ stock EditVehicle(playerid, vehicleid)
 
 	EditObject(playerid, Vehicle_GetPropertyInt(vehicleid, v_editor));
 
-	gPlayerVehicleEditer[playerid] = vehicleid;
+	gPlayerTempData[playerid][e_editor_vehicle] = vehicleid;
+	gPlayerTempData[playerid][e_editor_object] = INVALID_OBJECT_ID;
+	return true;
+}
+
+stock EditVehicleObject(playerid, vehicleid, objectid)
+{
+	if(IsValidObject(Vehicle_GetPropertyInt(vehicleid, v_editor))) return false;
+
+	if(! IsValidObject(objectid)) return false;
+	
+	Vehicle_SetPropertyInt(vehicleid, v_editor, objectid);
+
+	new Float:pos[3];
+	GetVehiclePos(vehicleid, pos[0], pos[1], pos[2]);
+
+	new Float:angle;
+	GetVehicleZAngle(vehicleid, angle);
+
+	new model;
+	model = GetObjectModel(objectid);
+
+	DestroyObject(objectid);
+	Vehicle_SetPropertyInt(vehicleid, v_editor, CreateObject(model, pos[0], pos[1], pos[2], angle, 0, 0));
+	
+	EditObject(playerid, Vehicle_GetPropertyInt(vehicleid, v_editor));
+
+	SetVehicleZAngle(vehicleid, 0.0);
+
+	gPlayerTempData[playerid][e_editor_vehicle] = vehicleid;
+	gPlayerTempData[playerid][e_editor_object] = objectid;
 	return true;
 }
 
@@ -2012,28 +1952,68 @@ stock EditVehicle(playerid, vehicleid)
 
 public OnPlayerEditObject(playerid, playerobject, objectid, response, Float:fX, Float:fY, Float:fZ, Float:fRotX, Float:fRotY, Float:fRotZ)
 {
-	if(IsValidVehicle(gPlayerVehicleEditer[playerid]))
+	if(IsValidVehicle(gPlayerTempData[playerid][e_editor_vehicle]))
 	{
-	    if(Vehicle_GetPropertyInt(gPlayerVehicleEditer[playerid], v_editor) == objectid)
+	    if(gPlayerTempData[playerid][e_editor_object] == INVALID_OBJECT_ID)
 	    {
-	        SetVehiclePos(gPlayerVehicleEditer[playerid], fX, fY, fZ);
-			SetVehicleZAngle(gPlayerVehicleEditer[playerid], fRotZ);
+			if(Vehicle_GetPropertyInt(gPlayerTempData[playerid][e_editor_vehicle], v_editor) == objectid)
+		    {
+		        SetVehiclePos(gPlayerTempData[playerid][e_editor_vehicle], fX, fY, fZ);
+				SetVehicleZAngle(gPlayerTempData[playerid][e_editor_vehicle], fRotZ);
 
-			CallLocalFunction("OnPlayerEditVehicle", "iiiffff", playerid, gPlayerVehicleEditer[playerid], response, fX, fY, fZ, fRotZ);
+				CallLocalFunction("OnPlayerEditVehicle", "iiiffff", playerid, gPlayerTempData[playerid][e_editor_vehicle], response, fX, fY, fZ, fRotZ);
 
-	        switch(response)
-	        {
-	            case EDIT_RESPONSE_CANCEL, EDIT_RESPONSE_FINAL:
-	            {
-					DestroyObject(objectid);
-					Vehicle_SetPropertyInt(gPlayerVehicleEditer[playerid], v_editor, INVALID_OBJECT_ID);
+		        switch(response)
+		        {
+		            case EDIT_RESPONSE_CANCEL, EDIT_RESPONSE_FINAL:
+		            {
+						DestroyObject(objectid);
+						Vehicle_SetPropertyInt(gPlayerTempData[playerid][e_editor_vehicle], v_editor, INVALID_OBJECT_ID);
 
-					SetVehicleVelocity(gPlayerVehicleEditer[playerid], 0.0, 0.0, 0.0);
+						SetVehicleVelocity(gPlayerTempData[playerid][e_editor_vehicle], 0.0, 0.0, 0.0);
 
-					gPlayerVehicleEditer[playerid] = INVALID_VEHICLE_ID;
-	            }
-	        }
-	    }
+						gPlayerTempData[playerid][e_editor_vehicle] = INVALID_VEHICLE_ID;
+						gPlayerTempData[playerid][e_editor_object] = INVALID_OBJECT_ID;
+		            }
+		        }
+		    }
+		}
+		else
+		{
+			if(Vehicle_GetPropertyInt(gPlayerTempData[playerid][e_editor_vehicle], v_editor) == objectid)
+		    {
+		        switch(response)
+		        {
+		            case EDIT_RESPONSE_CANCEL, EDIT_RESPONSE_FINAL:
+		            {
+                        new Float:pos[4];
+                        GetVehiclePos(gPlayerTempData[playerid][e_editor_vehicle], pos[0], pos[1], pos[2]);
+                        GetVehicleZAngle(gPlayerTempData[playerid][e_editor_vehicle], pos[3]);
+
+		                new Float:new_pos[4];
+                        new_pos[0] = fX - pos[0];
+                        new_pos[1] = fY - pos[1];
+                        new_pos[2] = fZ - pos[2];
+                        new_pos[3] = fRotZ - pos[3];
+
+                        new Float:final_pos[2];
+                        final_pos[0] = (new_pos[0] * floatcos(new_pos[3], degrees)) + (new_pos[1] * floatsin(new_pos[3], degrees));
+                        final_pos[1] = (new_pos[1] * floatcos(new_pos[3], degrees)) - (new_pos[0] * floatsin(new_pos[3], degrees));
+                        
+                        AttachObjectToVehicle(gPlayerTempData[playerid][e_editor_object], gPlayerTempData[playerid][e_editor_vehicle], final_pos[0], final_pos[1], new_pos[2], fRotX, fRotY, new_pos[3]);
+		            
+						Vehicle_SetPropertyInt(gPlayerTempData[playerid][e_editor_vehicle], v_editor, INVALID_OBJECT_ID);
+
+						gPlayerTempData[playerid][e_editor_vehicle] = INVALID_VEHICLE_ID;
+						gPlayerTempData[playerid][e_editor_object] = INVALID_OBJECT_ID;
+
+						return CallLocalFunction("OnPlayerEditVehicleObject", "iiiffffff", playerid, gPlayerTempData[playerid][e_editor_vehicle], response, final_pos[0], final_pos[1], new_pos[2], fRotX, fRotY, new_pos[3]);
+		            }
+		        }
+
+		        CallLocalFunction("OnPlayerEditVehicleObject", "iiiffffff", playerid, gPlayerTempData[playerid][e_editor_vehicle], response, fX, fY, fZ, fRotX, fRotY, fRotZ);
+		    }
+		}
 	}
 
 	#if defined Vehicle_OnPlayerEditObject
@@ -2053,6 +2033,7 @@ public OnPlayerEditObject(playerid, playerobject, objectid, response, Float:fX, 
 #define OnPlayerEditObject Vehicle_OnPlayerEditObject
 
 forward OnPlayerEditVehicle(playerid, vehicleid, response, Float:fX, Float:fY, Float:fZ, Float:fRotZ);
+forward OnPlayerEditVehicleObject(playerid, vehicleid, response, Float:fX, Float:fY, Float:fZ, Float:fRotX, Float:fRotY, Float:fRotZ);
 
 stock GetVehicleName(vehicleid, string[], len = sizeof(string))
 {
@@ -2624,3 +2605,20 @@ stock DestroyAllVehicles()
 	}
 	return true;
 }
+
+#undef 	v_interior
+#undef 	v_color
+#undef 	v_paintjob
+#undef 	v_horn
+#undef 	v_damage
+#undef 	v_editor
+#undef 	v_speedcap
+#undef 	v_spawn
+#undef 	v_spawn_interiorid
+#undef	v_spawn_worldid
+#undef 	v_spawn_uno_damage
+#undef 	v_petrolcap
+#undef 	v_bomb
+#undef 	v_bomb_timer
+#undef 	v_sticky
+#undef 	v_update_timer
