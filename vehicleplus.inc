@@ -987,6 +987,48 @@ stock static const gVehicleTempDataTopSpeed[MAX_VEHICLE_MODELS] =
 	0
 };
 
+//Note: if you use this in a filterscript, please define "FILTERSCRIPT" in your script
+#if defined FILTERSCRIPT// if used in a filterscript
+
+	public OnFilterScriptInit()
+	{
+	    SetTimer("Vehicle_CountAllVehicle", 5000, false);
+
+	    return CallLocalFunction("BAN_OnFilterScriptInit", "");
+	}
+	#if defined _ALS_OnFilterScriptInit
+		#undef OnFilterScriptInit
+	#else
+		#define _ALS_OnFilterScriptInit
+	#endif
+	#define OnFilterScriptInit BAN_OnFilterScriptInit
+	forward BAN_OnFilterScriptInit();
+
+#else// if used in a gamemode
+
+	public OnGameModeInit()
+	{
+	    SetTimer("Vehicle_CountAllVehicle", 5000, false);
+
+	    return CallLocalFunction("BAN_OnGameModeInit", "");
+	}
+	#if defined _ALS_OnGameModeInit
+		#undef OnGameModeInit
+	#else
+		#define _ALS_OnGameModeInit
+	#endif
+	#define OnGameModeInit BAN_OnGameModeInit
+	forward BAN_OnGameModeInit();
+
+#endif
+
+forward Vehicle_CountAllVehicle();
+public Vehicle_CountAllVehicle()
+{
+	new count = CountAllVehicles();
+	return printf("[Vehicleplus.inc] Total %i vehicles loaded in server. There are %i free slots to add vehicles (MAX_VEHICLES: %i)", count, (MAX_VEHICLES - count), MAX_VEHICLES);
+}
+
 #define v_interior      	0
 #define v_color<%1>     	(%1 + 1)
 #define v_paintjob      	3
@@ -1099,7 +1141,7 @@ stock static Vehicle_DeleteProperty(vehicleid, type)
 
 stock Vehicle_CreateVehicle(modelid, Float:x, Float:y, Float:z, Float:rotation, color1 = -1, color2 = -1, respawn_delay = -1, addsiren = 0, worldid = 0, interiorid = 0, bool:unoccupied_damage = false)
 {
-	if(modelid < 400 || modelid > 610) return false;
+	if(modelid < 400 || modelid > 610) return INVALID_VEHICLE_ID;
 
 	if(	(color1 == -1 || color2 == -1) &&
 		gVehicleTempDataColors[(modelid - 400)][0])
@@ -1118,11 +1160,17 @@ stock Vehicle_CreateVehicle(modelid, Float:x, Float:y, Float:z, Float:rotation, 
 		}
 	}
 
-	new vehicleid;
+	new vehicleid = INVALID_VEHICLE_ID;
 	switch(modelid)
 	{
 		case 569, 570, 537, 538: 	vehicleid = AddStaticVehicleEx(modelid, x, y, z, rotation, color1, color2, respawn_delay, addsiren);
 		default: 					vehicleid = CreateVehicle(modelid, Float:x, Float:y, Float:z, Float:rotation, color1, color2, respawn_delay, addsiren);
+	}
+
+	if(vehicleid == INVALID_VEHICLE_ID || ! IsValidVehicle(vehicleid)) 
+	{
+		printf("WARNING: Your server have reached MAX_VEHICLES limit (%i), The script request to create new vehicle was rejected. [vehicleplus.inc]", MAX_VEHICLES);
+		return INVALID_VEHICLE_ID;
 	}
 
 	LinkVehicleToInterior(vehicleid, interiorid);
@@ -1734,7 +1782,7 @@ public OnPlayerWeaponShot(playerid, weaponid, hittype, hitid, Float:fX, Float:fY
 					if(IsUnoccupiedDamageToggled(hitid))
 					{
 					    fUpdate = (GetVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES) + 8);
-					    if(fUpdate < (15 + 1))
+					    if(fUpdate > 15)
 						{
 							UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, fUpdate);
 						}
@@ -1757,7 +1805,7 @@ public OnPlayerWeaponShot(playerid, weaponid, hittype, hitid, Float:fX, Float:fY
 					if(IsUnoccupiedDamageToggled(hitid))
 					{
 					    fUpdate = (GetVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES) + 2);
-					    if(fUpdate < (15 + 1))
+					    if(fUpdate > 15)
 						{
 							UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, fUpdate);
 						}
@@ -1783,7 +1831,7 @@ public OnPlayerWeaponShot(playerid, weaponid, hittype, hitid, Float:fX, Float:fY
 					if(IsUnoccupiedDamageToggled(hitid))
 					{
 					    fUpdate = (GetVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES) + 4);
-					    if(fUpdate < (15 + 1))
+					    if(fUpdate > 15)
 						{
 							UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, fUpdate);
 						}
@@ -1806,7 +1854,7 @@ public OnPlayerWeaponShot(playerid, weaponid, hittype, hitid, Float:fX, Float:fY
 					if(IsUnoccupiedDamageToggled(hitid))
 					{
 					    fUpdate = (GetVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES) + 1);
-					    if(fUpdate < (15 + 1))
+					    if(fUpdate > 15)
 						{
 							UpdateVehicleDamageStatusEx(hitid, VEHICLE_DAMAGE_TIRES, fUpdate);
 						}
