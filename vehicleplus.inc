@@ -105,6 +105,10 @@ public OnVehicleHealthChange(vehicleid, Float:newhealth, Float:oldhealth)
 
 #define VEHICLE_UPDATE_INTERVAL					250
 
+#if ! defined IsValidVehicle
+	native IsValidVehicle(vehicleid);
+#endif
+
 enum VehicleTempDataEnum
 {
 	e_attached_object[MAX_VEHICLE_ATTACHED_OBJECTS],
@@ -2010,10 +2014,6 @@ stock EditVehicleObject(playerid, vehicleid, objectid)
 	gPlayerTempData[playerid][e_editor_object] = objectid;
 	return true;
 }
-
-#if ! defined IsValidVehicle
-	native IsValidVehicle(vehicleid);
-#endif
 
 public OnPlayerEditObject(playerid, playerobject, objectid, response, Float:fX, Float:fY, Float:fZ, Float:fRotX, Float:fRotY, Float:fRotZ)
 {
