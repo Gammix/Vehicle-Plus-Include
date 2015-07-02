@@ -2,7 +2,8 @@
 	Vehicles Plus Include (vehicleplus.inc)
 	* Add new features to your vehicles system and have the missing or actually the correct word is needed vehicle functions
 	* Gives you advantage over ordinary vehicle manager includes, this is compatiable with other scripts (using property function)
-	* Now EditVehicle avalaible with this include
+	* Now EditVehicle & EditVehicleObject avalaible with this include
+	* This version and so on supports streamer plugin
 
  	Author: (creator)
 	* Gammix
@@ -11,6 +12,7 @@
 	* Admigo - a_OPSVP include (offsets of vehicle bodyparts)
 	* Emmet_ - random car colors and top speed array
 	* Yashas - Reporting and improvement
+	* Pottus, Crayder: suggestions
 
 	(c) Copyright 2015
   	* This file is provided as is (no warranties).
@@ -61,6 +63,10 @@ native IsVehicleBombed(vehicleid);
 native IsVehicleBombActivated(vehicleid);
 native ToggleVehicleSticky(vehicleid, bool:toggle);
 native IsVehicleSticky(vehicleid);
+native SetVehicleFuel(vehicleid, fuel);
+native GetVehicleFuel(vehicleid);
+native ToggleVehicleFuel(vehicleid, bool:toggle);
+native IsVehicleFuelToggled(vehicleid);
 native CountAllVehicles();
 native DestroyAllVehicles();
 
@@ -75,6 +81,7 @@ public OnVehicleBombExplode(vehicleid)
 public OnVehiclePosChange(vehicleid, Float:newx, Float:newy, Float:newz, Float:newrotation, Float:oldx, Float:oldy, Float:oldz, Float:oldrotation)
 public OnVehicleVelocityChange(vehicleid, Float:newx, Float:newy, Float:newz, Float:oldx, Float:oldy, Float:oldz)
 public OnVehicleHealthChange(vehicleid, Float:newhealth, Float:oldhealth)
+public OnVehicleFuelChange(vehicleid, newfuel, oldfuel)
 */
 
 #define VEHICLE_DAMAGE_PANELS       			0
@@ -109,6 +116,22 @@ public OnVehicleHealthChange(vehicleid, Float:newhealth, Float:oldhealth)
 	native IsValidVehicle(vehicleid);
 #endif
 
+//support streamer plugin
+
+#if defined STREAMER_TYPE_OBJECT
+	native V_CreateObject(modelid, Float:X, Float:Y, Float:Z, Float:rX, Float:rY, Float:rZ, Float:DrawDistance = 0.0) = CreateDynamicObject;
+	native V_DestroyObject(objectid) 			= DestroyDynamicObject;
+	native V_IsValidObject(objectid) 			= IsValidDynamicObject;
+	native V_AttachObjectToVehicle(objectid, vehicleid, Float:OffsetX, Float:OffsetY, Float:OffsetZ, Float:RotX, Float:RotY, Float:RotZ) = AttachDynamicObjectToVehicle;
+	#define V_OnPlayerEditObject                OnPlayerEditDynamicObject(playerid, objectid, response, Float:x, Float:y, Float:z, Float:rx, Float:ry, Float:rz)
+#else
+	#define V_CreateObject						CreateObject
+	#define V_DestroyObject						DestroyObject
+	#define V_IsValidObject  					IsValidObject
+	#define V_AttachObjectToVehicle             AttachObjectToVehicle
+	#define V_OnPlayerEditObject                OnPlayerEditObject(playerid, playerobject, objectid, response, Float:fX, Float:fY, Float:fZ, Float:fRotX, Float:fRotY, Float:fRotZ)
+#endif
+
 enum VehicleTempDataEnum
 {
 	e_attached_object[MAX_VEHICLE_ATTACHED_OBJECTS],
@@ -120,6 +143,7 @@ enum VehicleTempDataEnum
 	Float:e_pos_z,
 	Float:e_pos_a,
 	Float:e_health,
+	e_uptime
 };
 static gVehicleTempData[MAX_VEHICLES][VehicleTempDataEnum];
 
@@ -992,37 +1016,55 @@ stock static const gVehicleTempDataTopSpeed[MAX_VEHICLE_MODELS] =
 };
 
 //Note: if you use this in a filterscript, please define "FILTERSCRIPT" in your script
-#if defined FILTERSCRIPT// if used in a filterscript
+#if defined FILTERSCRIPT
 
 	public OnFilterScriptInit()
 	{
-	    SetTimer("Vehicle_CountAllVehicle", 5000, false);
 
-	    return CallLocalFunction("BAN_OnFilterScriptInit", "");
-	}
-	#if defined _ALS_OnFilterScriptInit
-		#undef OnFilterScriptInit
-	#else
-		#define _ALS_OnFilterScriptInit
-	#endif
-	#define OnFilterScriptInit BAN_OnFilterScriptInit
-	forward BAN_OnFilterScriptInit();
-
-#else// if used in a gamemode
+#else
 
 	public OnGameModeInit()
 	{
+
+#endif
+
 	    SetTimer("Vehicle_CountAllVehicle", 5000, false);
 
-	    return CallLocalFunction("BAN_OnGameModeInit", "");
+#if defined FILTERSCRIPT
+
+	    #if defined Vehicfle_OnFilterScriptInit
+        	return Vehicfle_OnFilterScriptInit();
+	    #else
+	    	return 1;
+	    #endif
+	}
+	#if defined _ALS_OnFilterScriptInit
+	    #undef OnFilterScriptInit
+	#else
+	    #define _ALS_OnFilterScriptInit
+	#endif
+	#define OnFilterScriptInit Vehicfle_OnFilterScriptInit
+	#if defined Vehicfle_OnFilterScriptInit
+	    forward Vehicfle_OnFilterScriptInit();
+	#endif
+
+#else
+
+	    #if defined Vehicfle_OnGameModeInit
+        	return Vehicfle_OnGameModeInit();
+	    #else
+	    	return 1;
+	    #endif
 	}
 	#if defined _ALS_OnGameModeInit
-		#undef OnGameModeInit
+	    #undef OnGameModeInit
 	#else
-		#define _ALS_OnGameModeInit
+	    #define _ALS_OnGameModeInit
 	#endif
-	#define OnGameModeInit BAN_OnGameModeInit
-	forward BAN_OnGameModeInit();
+	#define OnGameModeInit Vehicfle_OnGameModeInit
+	#if defined Vehicfle_OnGameModeInit
+	    forward Vehicfle_OnGameModeInit();
+	#endif
 
 #endif
 
@@ -1049,6 +1091,8 @@ public Vehicle_CountAllVehicle()
 #define v_bomb_timer        20
 #define v_sticky            21
 #define v_update_timer      22
+#define v_fuel      		23
+#define v_fuel_use      	24
 
 stock static const gVehicleProperty[][45] =
 {
@@ -1074,7 +1118,9 @@ stock static const gVehicleProperty[][45] =
 	"v_bomb",
 	"v_bomb_timer",
 	"v_sticky",
-	"v_update_timer"
+	"v_update_timer",
+	"v_fuel",
+ 	"v_fuel_use"
 };
 
 stock static Vehicle_SetPropertyInt(vehicleid, type, set)
@@ -1171,7 +1217,7 @@ stock Vehicle_CreateVehicle(modelid, Float:x, Float:y, Float:z, Float:rotation, 
 		default: 					vehicleid = CreateVehicle(modelid, Float:x, Float:y, Float:z, Float:rotation, color1, color2, respawn_delay, addsiren);
 	}
 
-	if(vehicleid == INVALID_VEHICLE_ID || ! IsValidVehicle(vehicleid)) 
+	if(vehicleid == INVALID_VEHICLE_ID || ! IsValidVehicle(vehicleid))
 	{
 		printf("WARNING: Your server have reached MAX_VEHICLES limit (%i), The script request to create new vehicle was rejected. [vehicleplus.inc]", MAX_VEHICLES);
 		return INVALID_VEHICLE_ID;
@@ -1222,6 +1268,9 @@ stock Vehicle_CreateVehicle(modelid, Float:x, Float:y, Float:z, Float:rotation, 
 
 	Vehicle_SetPropertyInt(vehicleid, v_update_timer, -1);
 
+	Vehicle_SetPropertyInt(vehicleid, v_fuel, 1000);
+	Vehicle_SetPropertyInt(vehicleid, v_fuel_use, 0);
+
 	gVehicleTempData[vehicleid][e_pos_x] = x;
 	gVehicleTempData[vehicleid][e_pos_y] = y;
 	gVehicleTempData[vehicleid][e_pos_z] = z;
@@ -1232,6 +1281,8 @@ stock Vehicle_CreateVehicle(modelid, Float:x, Float:y, Float:z, Float:rotation, 
 	gVehicleTempData[vehicleid][e_vel_z] = 0.0;
 
 	gVehicleTempData[vehicleid][e_health] = 1000.0;
+	
+	gVehicleTempData[vehicleid][e_uptime] = 0;
 
 	return vehicleid;
 }
@@ -1305,7 +1356,7 @@ stock Vehicle_DestroyVehicle(vehicleid)
 				}
 			}
 		}
-		DestroyObject(Vehicle_GetPropertyInt(vehicleid, v_editor));
+		V_DestroyObject(Vehicle_GetPropertyInt(vehicleid, v_editor));
 
 		Vehicle_DeleteProperty(vehicleid, v_interior);
 
@@ -1325,13 +1376,14 @@ stock Vehicle_DestroyVehicle(vehicleid)
 
 		for(new i; i < MAX_VEHICLE_ATTACHED_OBJECTS; i++)
 		{
-  			if(IsValidObject(gVehicleTempData[vehicleid][e_attached_object][i]))
+  			if(V_IsValidObject(gVehicleTempData[vehicleid][e_attached_object][i]))
 			{
-			    DestroyObject(gVehicleTempData[vehicleid][e_attached_object][i]);
+			    V_DestroyObject(gVehicleTempData[vehicleid][e_attached_object][i]);
 			 	gVehicleTempData[vehicleid][e_attached_object][i] = INVALID_OBJECT_ID;
 		 	}
 		}
-
+		gVehicleTempData[vehicleid][e_uptime] = 0;
+	
 		Vehicle_DeleteProperty(vehicleid, v_speedcap);
 
 		Vehicle_DeleteProperty(vehicleid, v_spawn<0>);
@@ -1353,6 +1405,9 @@ stock Vehicle_DestroyVehicle(vehicleid)
 
 		Vehicle_DeleteProperty(vehicleid, v_update_timer);
 
+		Vehicle_DeleteProperty(vehicleid, v_fuel);
+		Vehicle_DeleteProperty(vehicleid, v_fuel_use);
+	
 		vehicleid = INVALID_VEHICLE_ID;
 		return true;
 	}
@@ -1973,11 +2028,11 @@ stock GetVehicleDriverID(vehicleid)
 
 stock EditVehicle(playerid, vehicleid)
 {
-	if(IsValidObject(Vehicle_GetPropertyInt(vehicleid, v_editor))) return false;
+	if(V_IsValidObject(Vehicle_GetPropertyInt(vehicleid, v_editor))) return false;
 
 	new Float:pos[3];
 	GetVehiclePos(vehicleid, pos[0], pos[1], pos[2]);
-	Vehicle_SetPropertyInt(vehicleid, v_editor, CreateObject(19300, pos[0], pos[1], pos[2], 0.0, 0.0, 0.0));
+	Vehicle_SetPropertyInt(vehicleid, v_editor, V_CreateObject(19300, pos[0], pos[1], pos[2], 0.0, 0.0, 0.0));
 
 	EditObject(playerid, Vehicle_GetPropertyInt(vehicleid, v_editor));
 
@@ -1988,9 +2043,9 @@ stock EditVehicle(playerid, vehicleid)
 
 stock EditVehicleObject(playerid, vehicleid, objectid)
 {
-	if(IsValidObject(Vehicle_GetPropertyInt(vehicleid, v_editor))) return false;
+	if(V_IsValidObject(Vehicle_GetPropertyInt(vehicleid, v_editor))) return false;
 
-	if(! IsValidObject(objectid)) return false;
+	if(! V_IsValidObject(objectid)) return false;
 
 	Vehicle_SetPropertyInt(vehicleid, v_editor, objectid);
 
@@ -2003,8 +2058,8 @@ stock EditVehicleObject(playerid, vehicleid, objectid)
 	new model;
 	model = GetObjectModel(objectid);
 
-	DestroyObject(objectid);
-	Vehicle_SetPropertyInt(vehicleid, v_editor, CreateObject(model, pos[0], pos[1], pos[2], angle, 0, 0));
+	V_DestroyObject(objectid);
+	Vehicle_SetPropertyInt(vehicleid, v_editor, V_CreateObject(model, pos[0], pos[1], pos[2], angle, 0, 0));
 
 	EditObject(playerid, Vehicle_GetPropertyInt(vehicleid, v_editor));
 
@@ -2015,7 +2070,15 @@ stock EditVehicleObject(playerid, vehicleid, objectid)
 	return true;
 }
 
-public OnPlayerEditObject(playerid, playerobject, objectid, response, Float:fX, Float:fY, Float:fZ, Float:fRotX, Float:fRotY, Float:fRotZ)
+#if defined STREAMER_TYPE_OBJECT
+	#define fX          x
+	#define fY          y
+	#define fZ          z
+	#define fRotX       rx
+	#define fRotY       ry
+	#define fRotZ       rz
+#endif
+public V_OnPlayerEditObject
 {
 	if(IsValidVehicle(gPlayerTempData[playerid][e_editor_vehicle]))
 	{
@@ -2032,7 +2095,7 @@ public OnPlayerEditObject(playerid, playerobject, objectid, response, Float:fX, 
 		        {
 		            case EDIT_RESPONSE_CANCEL, EDIT_RESPONSE_FINAL:
 		            {
-						DestroyObject(objectid);
+						V_DestroyObject(objectid);
 						Vehicle_SetPropertyInt(gPlayerTempData[playerid][e_editor_vehicle], v_editor, INVALID_OBJECT_ID);
 
 						SetVehicleVelocity(gPlayerTempData[playerid][e_editor_vehicle], 0.0, 0.0, 0.0);
@@ -2065,7 +2128,7 @@ public OnPlayerEditObject(playerid, playerobject, objectid, response, Float:fX, 
                         final_pos[0] = (new_pos[0] * floatcos(new_pos[3], degrees)) + (new_pos[1] * floatsin(new_pos[3], degrees));
                         final_pos[1] = (new_pos[1] * floatcos(new_pos[3], degrees)) - (new_pos[0] * floatsin(new_pos[3], degrees));
 
-                        AttachObjectToVehicle(gPlayerTempData[playerid][e_editor_object], gPlayerTempData[playerid][e_editor_vehicle], final_pos[0], final_pos[1], new_pos[2], fRotX, fRotY, new_pos[3]);
+                        V_AttachObjectToVehicle(gPlayerTempData[playerid][e_editor_object], gPlayerTempData[playerid][e_editor_vehicle], final_pos[0], final_pos[1], new_pos[2], fRotX, fRotY, new_pos[3]);
 
 						Vehicle_SetPropertyInt(gPlayerTempData[playerid][e_editor_vehicle], v_editor, INVALID_OBJECT_ID);
 
@@ -2081,21 +2144,50 @@ public OnPlayerEditObject(playerid, playerobject, objectid, response, Float:fX, 
 		}
 	}
 
-	#if defined Vehicle_OnPlayerEditObject
-        return Vehicle_OnPlayerEditObject(playerid, playerobject, objectid, response, Float:fX, Float:fY, Float:fZ, Float:fRotX, Float:fRotY, Float:fRotZ);
-    #else
-        return 1;
-    #endif
-}
-#if defined Vehicle_OnPlayerEditObject
-    forward Vehicle_OnPlayerEditObject(playerid, playerobject, objectid, response, Float:fX, Float:fY, Float:fZ, Float:fRotX, Float:fRotY, Float:fRotZ);
-#endif
-#if defined _ALS_OnPlayerEditObject
-    #undef OnPlayerEditObject
+#if defined STREAMER_TYPE_OBJECT
+
+		#undef fX
+		#undef fY
+		#undef fZ
+		#undef fRotX
+		#undef fRotY
+		#undef fRotZ
+
+		#if defined Ve_OnPlayerEditDynaicObject
+	        return Ve_OnPlayerEditDynaicObject(playerid, playerobject, objectid, response, Float:fX, Float:fY, Float:fZ, Float:fRotX, Float:fRotY, Float:fRotZ);
+	    #else
+	        return 1;
+	    #endif
+	}
+	#if defined Ve_OnPlayerEditDynaicObject
+	    forward Ve_OnPlayerEditDynaicObject(playerid, playerobject, objectid, response, Float:fX, Float:fY, Float:fZ, Float:fRotX, Float:fRotY, Float:fRotZ);
+	#endif
+	#if defined _ALS_OnPlayerEditObject
+	    #undef OnPlayerEditObject
+	#else
+	    #define _ALS_OnPlayerEditDynaicObject
+	#endif
+	#define OnPlayerEditDynaicObject Ve_OnPlayerEditDynaicObject
+
 #else
-    #define _ALS_OnPlayerEditObject
+
+		#if defined Vehicle_OnPlayerEditObject
+	        return Vehicle_OnPlayerEditObject(playerid, playerobject, objectid, response, Float:fX, Float:fY, Float:fZ, Float:fRotX, Float:fRotY, Float:fRotZ);
+	    #else
+	        return 1;
+	    #endif
+	}
+	#if defined Vehicle_OnPlayerEditObject
+	    forward Vehicle_OnPlayerEditObject(playerid, playerobject, objectid, response, Float:fX, Float:fY, Float:fZ, Float:fRotX, Float:fRotY, Float:fRotZ);
+	#endif
+	#if defined _ALS_OnPlayerEditObject
+	    #undef OnPlayerEditObject
+	#else
+	    #define _ALS_OnPlayerEditObject
+	#endif
+	#define OnPlayerEditObject Vehicle_OnPlayerEditObject
+
 #endif
-#define OnPlayerEditObject Vehicle_OnPlayerEditObject
 
 forward OnPlayerEditVehicle(playerid, vehicleid, response, Float:fX, Float:fY, Float:fZ, Float:fRotZ);
 forward OnPlayerEditVehicleObject(playerid, vehicleid, response, Float:fX, Float:fY, Float:fZ, Float:fRotX, Float:fRotY, Float:fRotZ);
@@ -2154,9 +2246,9 @@ stock Vehicle_AttachObjectToVehicle(objectid, vehicleid, Float:OffsetX, Float:Of
 {
     for(new i; i < MAX_VEHICLE_ATTACHED_OBJECTS; i++)
 	{
-  		if(! IsValidObject(gVehicleTempData[vehicleid][e_attached_object][i]))
+  		if(! V_IsValidObject(gVehicleTempData[vehicleid][e_attached_object][i]))
 		{
-		    if(AttachObjectToVehicle(objectid, vehicleid, OffsetX, OffsetY, OffsetZ, RotX, RotY, RotZ))
+		    if(V_AttachObjectToVehicle(objectid, vehicleid, OffsetX, OffsetY, OffsetZ, RotX, RotY, RotZ))
 			{
 				gVehicleTempData[vehicleid][e_attached_object][i] = objectid;
 		    	return true;
@@ -2168,17 +2260,26 @@ stock Vehicle_AttachObjectToVehicle(objectid, vehicleid, Float:OffsetX, Float:Of
 	return false;
 }
 #if defined _ALS_AttachObjectToVehicle
-    #undef AttachObjectToVehicle
+	#undef AttachObjectToVehicle
 #else
     #define _ALS_AttachObjectToVehicle
 #endif
 #define AttachObjectToVehicle Vehicle_AttachObjectToVehicle
 
+#if defined STREAMER_TYPE_OBJECT
+    #if defined _ALS_AttachDynamicObjectToV
+		#undef AttachDynamicObjectToVehicle
+	#else
+	    #define _ALS_AttachDynamicObjectToV
+	#endif
+	#define AttachDynamicObjectToVehicle Vehicle_AttachObjectToVehicle
+#endif
+
 stock IsObjectAttachedToVehicle(objectid, vehicleid)
 {
 	for(new i; i < MAX_VEHICLE_ATTACHED_OBJECTS; i++)
 	{
-  		if(IsValidObject(gVehicleTempData[vehicleid][e_attached_object][i]))
+  		if(V_IsValidObject(gVehicleTempData[vehicleid][e_attached_object][i]))
 		{
 		    if(gVehicleTempData[vehicleid][e_attached_object][i] == objectid) return true;
 		}
@@ -2188,7 +2289,7 @@ stock IsObjectAttachedToVehicle(objectid, vehicleid)
 
 stock GetVehicleSlotAttachedObject(vehicleid, slot)
 {
-	if(! IsValidObject(gVehicleTempData[vehicleid][e_attached_object][slot])) return -1;
+	if(! V_IsValidObject(gVehicleTempData[vehicleid][e_attached_object][slot])) return -1;
 
 	return gVehicleTempData[vehicleid][e_attached_object][slot];
 
@@ -2605,13 +2706,63 @@ public OnVehicleTimeUpdate(vehicleid)
  	}
 
 	GetVehicleVelocity(vehicleid, FloatData[0], FloatData[1], FloatData[2]);
-	if(funcidx("OnVehicleVelocityChange") != -1)
+	if(	funcidx("OnVehicleVelocityChange") != -1 ||
+		IsVehicleFuelToggled(vehicleid))
  	{
 	 	if(	FloatData[0] != gVehicleTempData[vehicleid][e_vel_x] ||
 		    FloatData[1] != gVehicleTempData[vehicleid][e_vel_y] ||
 		    FloatData[2] != gVehicleTempData[vehicleid][e_vel_z])
  		{
-	 	    if(CallLocalFunction("OnVehicleVelocityChange", "iffffff", vehicleid, FloatData[0], FloatData[1], FloatData[2], gVehicleTempData[vehicleid][e_vel_x], gVehicleTempData[vehicleid][e_vel_y], gVehicleTempData[vehicleid][e_vel_z]))
+ 		    //fuel system
+ 		    new vehicle_speed = floatround(GetVehicleSpeed(vehicleid, true, FloatData[0], FloatData[1], FloatData[2]));
+			if(vehicle_speed > 0)
+			{
+			    //if vehicle out of fuel
+				if(GetVehicleFuel(vehicleid) <= 0)
+    			{
+                	SetVehicleParams(vehicleid, VEHICLE_PARAMS_ENGINE, VEHICLE_PARAMS_OFF);
+                	new vehicle_driver = GetVehicleDriverID(vehicleid);
+                	if(IsPlayerConnected(vehicle_driver))
+                	{
+                	    GameTextForPlayer(vehicle_driver, "~r~Vehicleout of fuel !", 5000, 3);
+                	}
+			    }
+			    //if vehicle has some positive fuel
+			    else
+			    {
+		       		gVehicleTempData[vehicleid][e_uptime] += 1;
+
+		 		    //if the vehicle speed is quiet high
+					new fuel_consumption_level = 0;
+		 		    for(new i = 20, j = GetVehicleTopSpeed(vehicleid); i <= j; i += 20)
+		 		    {
+			 		    if(vehicle_speed > i)
+			 		    {
+			       			fuel_consumption_level += 1;
+						}
+					}
+
+
+					gVehicleTempData[vehicleid][e_uptime] += 1;
+					if(gVehicleTempData[vehicleid][e_uptime] > 20)// 250 ms * 20 = 5 seconds
+					{
+					    gVehicleTempData[vehicleid][e_uptime] = 0;
+
+						new old_fuel = Vehicle_GetPropertyInt(vehicleid, v_fuel);
+						new new_fuel = (old_fuel - fuel_consumption_level - 1);
+
+						if(	funcidx("OnVehicleFuelChange") == -1 ||
+							CallLocalFunction("OnVehicleFuelChange", "iii", vehicleid, new_fuel, old_fuel))
+						{
+						    Vehicle_SetPropertyInt(vehicleid, v_fuel, new_fuel);
+						}
+					}
+				}
+			}
+			//
+ 		    
+	 	    if(	funcidx("OnVehicleVelocityChange") == -1 ||
+			 	CallLocalFunction("OnVehicleVelocityChange", "iffffff", vehicleid, FloatData[0], FloatData[1], FloatData[2], gVehicleTempData[vehicleid][e_vel_x], gVehicleTempData[vehicleid][e_vel_y], gVehicleTempData[vehicleid][e_vel_z]))
 	 	    {
 		 	    gVehicleTempData[vehicleid][e_vel_x] = FloatData[0];
 				gVehicleTempData[vehicleid][e_vel_y] = FloatData[1];
@@ -2635,7 +2786,7 @@ public OnVehicleTimeUpdate(vehicleid)
 	 	    }
 	 	    else
 	 	    {
-				return SetVehicleHealth(vehicleid, gVehicleTempData[vehicleid][e_health]);
+				return SetVehicleHealth(vehicleid, gVehicleTempData [vehicleid][e_health]);
 	 	    }
 	 	}
 	}
@@ -2645,6 +2796,29 @@ public OnVehicleTimeUpdate(vehicleid)
 forward OnVehiclePosChange(vehicleid, Float:newx, Float:newy, Float:newz, Float:newrotation, Float:oldx, Float:oldy, Float:oldz, Float:oldrotation);
 forward OnVehicleVelocityChange(vehicleid, Float:newx, Float:newy, Float:newz, Float:oldx, Float:oldy, Float:oldz);
 forward OnVehicleHealthChange(vehicleid, Float:newhealth, Float:oldhealth);
+forward OnVehicleFuelChange(vehicleid, newfuel, oldfuel);
+
+stock SetVehicleFuel(vehicleid, fuel)
+{
+	if(fuel > 1000) fuel = 1000;
+	
+	return Vehicle_SetPropertyInt(vehicleid, v_fuel, fuel);
+}
+
+stock GetVehicleFuel(vehicleid)
+{
+	return Vehicle_GetPropertyInt(vehicleid, v_fuel);
+}
+
+stock ToggleVehicleFuel(vehicleid, bool:toggle)
+{
+	return Vehicle_SetPropertyInt(vehicleid, v_fuel_use, _:toggle);
+}
+
+stock IsVehicleFuelToggled(vehicleid)
+{
+	return Vehicle_GetPropertyInt(vehicleid, v_fuel_use);
+}
 
 stock CountAllVehicles()
 {
@@ -2671,6 +2845,14 @@ stock DestroyAllVehicles()
 	return true;
 }
 
+#if ! defined STREAMER_TYPE_OBJECT
+	#undef 	V_CreateObject
+	#undef 	V_DestroyObject
+	#undef 	V_IsValidObject
+	#undef 	V_AttachObjectToVehicle
+#endif
+#undef 	V_OnPlayerEditObject
+
 #undef 	v_interior
 #undef 	v_color
 #undef 	v_paintjob
@@ -2687,3 +2869,5 @@ stock DestroyAllVehicles()
 #undef 	v_bomb_timer
 #undef 	v_sticky
 #undef 	v_update_timer
+#undef 	v_fuel
+#undef 	v_fuel_use
